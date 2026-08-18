@@ -1,0 +1,7 @@
+{
+  "BASE_URL": "https://alnisastore.com",
+  "API_VERSION": "wp-json/wc/v3",
+  "STORE_API_VERSION": "wp-json/wc/store/v1",
+  "WOO_CONSUMER_KEY": "ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "WOO_CONSUMER_SECRET": "cs_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+}
