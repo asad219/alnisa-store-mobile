@@ -13,8 +13,13 @@ class AppConstants {
   /// WooCommerce Store API path segment (session-based cart).
   static String get storeApiVersion => EnvConfig.storeApiVersion;
 
-  /// Default HTTP timeout. 5s is too aggressive on slow/mobile networks.
-  static const int timeoutDuration = 20000; // in milliseconds
+  /// Public core WordPress REST API path segment (banners, etc.).
+  static String get wpApiVersion => EnvConfig.wpApiVersion;
+
+  /// Default HTTP timeout. The WooCommerce/WP backend can take 7-10s+ per
+  /// request, so this needs enough headroom for slower mobile networks
+  /// and pages that fire several requests concurrently (e.g. Home screen).
+  static const int timeoutDuration = 45000; // in milliseconds
 
   // shared_preferences keys
   static const String seenOnboardingKey = 'seenOnboarding';

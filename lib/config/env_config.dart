@@ -20,6 +20,13 @@ class EnvConfig {
     defaultValue: 'wp-json/wc/store/v1',
   );
 
+  /// Public core WordPress REST API path segment (custom post types like
+  /// banners) — no consumer key required.
+  static const String wpApiVersion = String.fromEnvironment(
+    'WP_API_VERSION',
+    defaultValue: 'wp-json/wp/v2',
+  );
+
   /// Read-only WooCommerce REST API consumer key. Must never be a
   /// write-scoped key — this is bundled into the client app.
   static const String wooConsumerKey = String.fromEnvironment(

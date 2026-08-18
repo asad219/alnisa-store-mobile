@@ -39,6 +39,7 @@ dependencies:
   equatable: ^2.1.0
   get_it: ^9.2.1
   http: ^1.6.0
+  cached_network_image: ^3.4.1
   shared_preferences: ^2.5.5
   flutter_secure_storage: ^11.0.0
   firebase_auth: ^6.5.7

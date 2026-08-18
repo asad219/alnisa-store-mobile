@@ -1,21 +1,18 @@
+import 'package:alnisa_store/blocs/main_navigation/main_tab_cubit.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 class AppBottomNavBarWidget extends StatelessWidget {
-  const AppBottomNavBarWidget({
-    super.key,
-    required this.currentIndex,
-    required this.onTap,
-  });
+  const AppBottomNavBarWidget({super.key, required this.currentIndex});
 
   final int currentIndex;
-  final ValueChanged<int> onTap;
 
   @override
   Widget build(BuildContext context) {
     return BottomNavigationBar(
       type: BottomNavigationBarType.fixed,
       currentIndex: currentIndex,
-      onTap: onTap,
+      onTap: (index) => context.read<MainTabCubit>().changeTab(index),
       items: [
         BottomNavigationBarItem(
           icon: Icon(currentIndex == 0 ? Icons.home : Icons.home_outlined),

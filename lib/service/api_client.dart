@@ -20,6 +20,10 @@ import 'package:http/http.dart' as http;
 ///   auth for that request.
 /// - `useStoreApi` targets the session-based WooCommerce Store API
 ///   (cart endpoints) instead of REST v3, and never sends consumer keys.
+/// - `useWpApi` targets the public core WordPress REST API
+///   (`wp-json/wp/v2`, e.g. custom post types like banners) instead of
+///   REST v3, and never sends consumer keys. Mutually exclusive with
+///   `useStoreApi`.
 class ApiClient {
   ApiClient._();
 
@@ -28,20 +32,39 @@ class ApiClient {
     required bool useStoreApi,
     required bool useConsumerAuth,
     required bool requiresAuth,
+    bool useWpApi = false,
     Map<String, String>? queryParams,
   }) {
-    final apiSegment =
-        useStoreApi ? AppConstants.storeApiVersion : AppConstants.apiVersion;
+    final apiSegment = useWpApi
+        ? AppConstants.wpApiVersion
+        : useStoreApi
+        ? AppConstants.storeApiVersion
+        : AppConstants.apiVersion;
     final fullPath = endpoint.startsWith('/') ? endpoint : '/$endpoint';
     final uri = Uri.parse('${AppConstants.baseUrl}/$apiSegment$fullPath');
 
     final params = <String, String>{...uri.queryParameters, ...?queryParams};
-    if (useConsumerAuth && !requiresAuth && !useStoreApi) {
+    if (useConsumerAuth && !requiresAuth && !useStoreApi && !useWpApi) {
       params['consumer_key'] = EnvConfig.wooConsumerKey;
       params['consumer_secret'] = EnvConfig.wooConsumerSecret;
     }
 
     return params.isEmpty ? uri : uri.replace(queryParameters: params);
+  }
+
+  /// Converts arbitrary query param values (int, bool, etc.) to the string
+  /// form expected by WooCommerce filters (page, per_page, category,
+  /// orderby, order, featured, on_sale, search, ...), dropping null values.
+  static Map<String, String>? _stringifyQueryParams(
+    Map<String, dynamic>? queryParams,
+  ) {
+    if (queryParams == null) return null;
+    final result = <String, String>{};
+    for (final entry in queryParams.entries) {
+      if (entry.value == null) continue;
+      result[entry.key] = entry.value.toString();
+    }
+    return result;
   }
 
   static Future<Map<String, String>> _buildHeaders({
@@ -74,7 +97,8 @@ class ApiClient {
     bool useConsumerAuth = true,
     bool requiresAuth = false,
     bool useStoreApi = false,
-    Map<String, String>? queryParams,
+    bool useWpApi = false,
+    Map<String, dynamic>? queryParams,
     List<int> successCodes = const [200, 201],
     String? defaultErrorMessage,
     Duration? timeout,
@@ -82,9 +106,10 @@ class ApiClient {
     final uri = _buildUrl(
       endpoint,
       useStoreApi: useStoreApi,
+      useWpApi: useWpApi,
       useConsumerAuth: useConsumerAuth,
       requiresAuth: requiresAuth,
-      queryParams: queryParams,
+      queryParams: _stringifyQueryParams(queryParams),
     );
     final headers = await _buildHeaders(requiresAuth: requiresAuth);
 
@@ -114,7 +139,8 @@ class ApiClient {
     bool useConsumerAuth = true,
     bool requiresAuth = false,
     bool useStoreApi = false,
-    Map<String, String>? queryParams,
+    bool useWpApi = false,
+    Map<String, dynamic>? queryParams,
     List<int> successCodes = const [200, 201],
     String? defaultErrorMessage,
     Duration? timeout,
@@ -122,9 +148,10 @@ class ApiClient {
     final uri = _buildUrl(
       endpoint,
       useStoreApi: useStoreApi,
+      useWpApi: useWpApi,
       useConsumerAuth: useConsumerAuth,
       requiresAuth: requiresAuth,
-      queryParams: queryParams,
+      queryParams: _stringifyQueryParams(queryParams),
     );
     final headers = await _buildHeaders(requiresAuth: requiresAuth);
 

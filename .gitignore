@@ -50,3 +50,10 @@ env/staging.json
 env/prod.json
 key.properties
 upload-keystore.jks
+
+# Firebase config (contains API keys / app IDs - regenerate locally via
+# `flutterfire configure` / `google-services.json` download from console)
+lib/firebase_options.dart
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+macos/Runner/GoogleService-Info.plist
