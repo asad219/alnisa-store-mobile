@@ -1,6 +1,7 @@
 import 'package:alnisa_store/core/api/api_response_parser.dart';
 import 'package:alnisa_store/models/category/category_model.dart';
 import 'package:alnisa_store/models/product/product_model.dart';
+import 'package:alnisa_store/models/product/product_variation_model.dart';
 import 'package:alnisa_store/service/api_client.dart';
 
 /// Talks to the WooCommerce `/products` and `/products/categories`
@@ -39,6 +40,15 @@ class ProductHttpApiRepository {
   Future<ProductModel> fetchProductById(int id) async {
     final decoded = await ApiClient.get('/products/$id');
     return ApiResponseParser.parseObject(decoded, ProductModel.fromJson);
+  }
+
+  Future<List<ProductVariationModel>> fetchProductVariations(int productId) async {
+    final decoded = await ApiClient.getList(
+      '/products/$productId/variations',
+      queryParams: {'per_page': 100},
+    );
+
+    return ApiResponseParser.parseList(decoded, ProductVariationModel.fromJson);
   }
 
   Future<List<CategoryModel>> fetchCategories({

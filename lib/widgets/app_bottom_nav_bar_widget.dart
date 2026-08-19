@@ -1,3 +1,4 @@
+import 'package:alnisa_store/blocs/cart/cart_bloc.dart';
 import 'package:alnisa_store/blocs/main_navigation/main_tab_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -9,6 +10,8 @@ class AppBottomNavBarWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final itemCount = context.watch<CartBloc>().state.cart?.itemsCount ?? 0;
+
     return BottomNavigationBar(
       type: BottomNavigationBarType.fixed,
       currentIndex: currentIndex,
@@ -31,10 +34,40 @@ class AppBottomNavBarWidget extends StatelessWidget {
           label: 'Wishlist',
         ),
         BottomNavigationBarItem(
-          icon: Icon(
-            currentIndex == 3
-                ? Icons.shopping_cart
-                : Icons.shopping_cart_outlined,
+          icon: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Icon(
+                currentIndex == 3
+                    ? Icons.shopping_cart
+                    : Icons.shopping_cart_outlined,
+              ),
+              if (itemCount > 0)
+                Positioned(
+                  right: -8,
+                  top: -6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 2,
+                    ),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                    child: Text(
+                      itemCount > 99 ? '99+' : '$itemCount',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
           label: 'Cart',
         ),

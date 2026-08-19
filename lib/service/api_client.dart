@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:io';
 
 import 'package:alnisa_store/config/env_config.dart';
 import 'package:alnisa_store/constants/app_constants.dart';
 import 'package:alnisa_store/core/errors/api_exception.dart';
+import 'package:alnisa_store/service/cart_session_service.dart';
 import 'package:alnisa_store/service/firebase_auth_service.dart';
 import 'package:http/http.dart' as http;
 
@@ -70,8 +72,9 @@ class ApiClient {
   static Future<Map<String, String>> _buildHeaders({
     required bool requiresAuth,
     bool includeContentType = false,
+    Map<String, String>? additionalHeaders,
   }) async {
-    final headers = <String, String>{};
+    final headers = <String, String>{...?additionalHeaders};
 
     if (includeContentType) {
       headers['Content-Type'] = 'application/json';
@@ -91,6 +94,53 @@ class ApiClient {
     return headers;
   }
 
+  static String? _readHeaderIgnoreCase(
+    Map<String, String> headers,
+    String headerName,
+  ) {
+    final expected = headerName.toLowerCase();
+    for (final entry in headers.entries) {
+      if (entry.key.toLowerCase() == expected && entry.value.trim().isNotEmpty) {
+        return entry.value;
+      }
+    }
+    return null;
+  }
+
+  static Future<void> _captureStoreSessionHeaders(http.Response response) async {
+    final cartToken = _readHeaderIgnoreCase(response.headers, 'cart-token');
+    final nonce =
+        _readHeaderIgnoreCase(response.headers, 'x-wc-store-api-nonce') ??
+        _readHeaderIgnoreCase(response.headers, 'nonce');
+
+    if (cartToken != null && cartToken.isNotEmpty) {
+      await CartSessionService.instance.setCartToken(cartToken);
+    }
+    if (nonce != null && nonce.isNotEmpty) {
+      await CartSessionService.instance.setNonce(nonce);
+    }
+  }
+
+  static Future<Map<String, String>> _buildStoreSessionHeaders({
+    required bool includeNonce,
+  }) async {
+    final headers = <String, String>{};
+    final cartToken = await CartSessionService.instance.getCartToken();
+    if (cartToken != null && cartToken.isNotEmpty) {
+      headers['Cart-Token'] = cartToken;
+    }
+
+    if (includeNonce) {
+      final nonce = await CartSessionService.instance.getNonce();
+      if (nonce != null && nonce.isNotEmpty) {
+        headers['X-WC-Store-API-Nonce'] = nonce;
+        headers['Nonce'] = nonce;
+      }
+    }
+
+    return headers;
+  }
+
   // GET a single resource, returning a decoded JSON object.
   static Future<Map<String, dynamic>> get(
     String endpoint, {
@@ -102,6 +152,8 @@ class ApiClient {
     List<int> successCodes = const [200, 201],
     String? defaultErrorMessage,
     Duration? timeout,
+    FutureOr<void> Function(http.Response response)? onResponse,
+    Map<String, String>? additionalHeaders,
   }) async {
     final uri = _buildUrl(
       endpoint,
@@ -111,20 +163,59 @@ class ApiClient {
       requiresAuth: requiresAuth,
       queryParams: _stringifyQueryParams(queryParams),
     );
-    final headers = await _buildHeaders(requiresAuth: requiresAuth);
+    final headers = await _buildHeaders(
+      requiresAuth: requiresAuth,
+      additionalHeaders: additionalHeaders,
+    );
 
-    final response = await http
-        .get(uri, headers: headers)
-        .timeout(
-          timeout ?? Duration(milliseconds: AppConstants.timeoutDuration),
-          onTimeout: () =>
-              throw const ApiException(userMessage: 'Request timed out'),
-        );
+    late final http.Response response;
+    try {
+      response = await http
+          .get(uri, headers: headers)
+          .timeout(
+            timeout ?? Duration(milliseconds: AppConstants.timeoutDuration),
+            onTimeout: () =>
+                throw const ApiException(userMessage: 'Request timed out'),
+          );
+    } on SocketException catch (e, st) {
+      developer.log(
+        'Network unreachable calling $uri',
+        name: 'ApiClient',
+        error: e,
+        stackTrace: st,
+      );
+      throw ApiException(
+        userMessage:
+            'No internet connection. Please check your network and try again.',
+        cause: e,
+      );
+    } on HandshakeException catch (e, st) {
+      developer.log(
+        'TLS handshake failed calling $uri',
+        name: 'ApiClient',
+        error: e,
+        stackTrace: st,
+      );
+      throw ApiException(
+        userMessage: 'Secure connection failed. Please try again.',
+        cause: e,
+      );
+    }
+
+    if (onResponse != null) {
+      await onResponse(response);
+    }
+
+    developer.log(
+      'Response ${response.statusCode} for $uri: ${response.body.length > 500 ? response.body.substring(0, 500) : response.body}',
+      name: 'ApiClient',
+    );
 
     final decoded = _handleResponse(
       response,
       successCodes: successCodes,
       defaultErrorMessage: defaultErrorMessage ?? 'Request failed',
+      requiresAuth: requiresAuth,
     );
 
     if (decoded is Map<String, dynamic>) return decoded;
@@ -144,6 +235,8 @@ class ApiClient {
     List<int> successCodes = const [200, 201],
     String? defaultErrorMessage,
     Duration? timeout,
+    FutureOr<void> Function(http.Response response)? onResponse,
+    Map<String, String>? additionalHeaders,
   }) async {
     final uri = _buildUrl(
       endpoint,
@@ -153,21 +246,60 @@ class ApiClient {
       requiresAuth: requiresAuth,
       queryParams: _stringifyQueryParams(queryParams),
     );
-    final headers = await _buildHeaders(requiresAuth: requiresAuth);
+    final headers = await _buildHeaders(
+      requiresAuth: requiresAuth,
+      additionalHeaders: additionalHeaders,
+    );
 
-    final response = await http
-        .get(uri, headers: headers)
-        .timeout(
-          timeout ?? Duration(milliseconds: AppConstants.timeoutDuration),
-          onTimeout: () =>
-              throw const ApiException(userMessage: 'Request timed out'),
-        );
+    late final http.Response response;
+    try {
+      response = await http
+          .get(uri, headers: headers)
+          .timeout(
+            timeout ?? Duration(milliseconds: AppConstants.timeoutDuration),
+            onTimeout: () =>
+                throw const ApiException(userMessage: 'Request timed out'),
+          );
+    } on SocketException catch (e, st) {
+      developer.log(
+        'Network unreachable calling $uri',
+        name: 'ApiClient',
+        error: e,
+        stackTrace: st,
+      );
+      throw ApiException(
+        userMessage:
+            'No internet connection. Please check your network and try again.',
+        cause: e,
+      );
+    } on HandshakeException catch (e, st) {
+      developer.log(
+        'TLS handshake failed calling $uri',
+        name: 'ApiClient',
+        error: e,
+        stackTrace: st,
+      );
+      throw ApiException(
+        userMessage: 'Secure connection failed. Please try again.',
+        cause: e,
+      );
+    }
+
+    if (onResponse != null) {
+      await onResponse(response);
+    }
+
+    developer.log(
+      'Response ${response.statusCode} for $uri: ${response.body.length > 500 ? response.body.substring(0, 500) : response.body}',
+      name: 'ApiClient',
+    );
 
     final effectiveErrorMessage = defaultErrorMessage ?? 'Request failed';
     final decoded = _handleResponse(
       response,
       successCodes: successCodes,
       defaultErrorMessage: effectiveErrorMessage,
+      requiresAuth: requiresAuth,
     );
 
     if (decoded is List) return decoded;
@@ -192,6 +324,8 @@ class ApiClient {
     List<int> successCodes = const [200, 201],
     String? defaultErrorMessage,
     Duration? timeout,
+    FutureOr<void> Function(http.Response response)? onResponse,
+    Map<String, String>? additionalHeaders,
   }) async {
     final uri = _buildUrl(
       endpoint,
@@ -203,24 +337,61 @@ class ApiClient {
     final headers = await _buildHeaders(
       requiresAuth: requiresAuth,
       includeContentType: true,
+      additionalHeaders: additionalHeaders,
     );
 
-    final response = await http
-        .post(
-          uri,
-          headers: headers,
-          body: body != null ? jsonEncode(body) : null,
-        )
-        .timeout(
-          timeout ?? Duration(milliseconds: AppConstants.timeoutDuration),
-          onTimeout: () =>
-              throw const ApiException(userMessage: 'Request timed out'),
-        );
+    late final http.Response response;
+    try {
+      response = await http
+          .post(
+            uri,
+            headers: headers,
+            body: body != null ? jsonEncode(body) : null,
+          )
+          .timeout(
+            timeout ?? Duration(milliseconds: AppConstants.timeoutDuration),
+            onTimeout: () =>
+                throw const ApiException(userMessage: 'Request timed out'),
+          );
+    } on SocketException catch (e, st) {
+      developer.log(
+        'Network unreachable calling $uri',
+        name: 'ApiClient',
+        error: e,
+        stackTrace: st,
+      );
+      throw ApiException(
+        userMessage:
+            'No internet connection. Please check your network and try again.',
+        cause: e,
+      );
+    } on HandshakeException catch (e, st) {
+      developer.log(
+        'TLS handshake failed calling $uri',
+        name: 'ApiClient',
+        error: e,
+        stackTrace: st,
+      );
+      throw ApiException(
+        userMessage: 'Secure connection failed. Please try again.',
+        cause: e,
+      );
+    }
+
+    if (onResponse != null) {
+      await onResponse(response);
+    }
+
+    developer.log(
+      'Response ${response.statusCode} for $uri: ${response.body.length > 500 ? response.body.substring(0, 500) : response.body}',
+      name: 'ApiClient',
+    );
 
     final decoded = _handleResponse(
       response,
       successCodes: successCodes,
       defaultErrorMessage: defaultErrorMessage ?? 'Request failed',
+      requiresAuth: requiresAuth,
     );
 
     if (decoded is Map<String, dynamic>) return decoded;
@@ -238,6 +409,8 @@ class ApiClient {
     List<int> successCodes = const [200, 201],
     String? defaultErrorMessage,
     Duration? timeout,
+    FutureOr<void> Function(http.Response response)? onResponse,
+    Map<String, String>? additionalHeaders,
   }) async {
     final uri = _buildUrl(
       endpoint,
@@ -249,24 +422,61 @@ class ApiClient {
     final headers = await _buildHeaders(
       requiresAuth: requiresAuth,
       includeContentType: true,
+      additionalHeaders: additionalHeaders,
     );
 
-    final response = await http
-        .put(
-          uri,
-          headers: headers,
-          body: body != null ? jsonEncode(body) : null,
-        )
-        .timeout(
-          timeout ?? Duration(milliseconds: AppConstants.timeoutDuration),
-          onTimeout: () =>
-              throw const ApiException(userMessage: 'Request timed out'),
-        );
+    late final http.Response response;
+    try {
+      response = await http
+          .put(
+            uri,
+            headers: headers,
+            body: body != null ? jsonEncode(body) : null,
+          )
+          .timeout(
+            timeout ?? Duration(milliseconds: AppConstants.timeoutDuration),
+            onTimeout: () =>
+                throw const ApiException(userMessage: 'Request timed out'),
+          );
+    } on SocketException catch (e, st) {
+      developer.log(
+        'Network unreachable calling $uri',
+        name: 'ApiClient',
+        error: e,
+        stackTrace: st,
+      );
+      throw ApiException(
+        userMessage:
+            'No internet connection. Please check your network and try again.',
+        cause: e,
+      );
+    } on HandshakeException catch (e, st) {
+      developer.log(
+        'TLS handshake failed calling $uri',
+        name: 'ApiClient',
+        error: e,
+        stackTrace: st,
+      );
+      throw ApiException(
+        userMessage: 'Secure connection failed. Please try again.',
+        cause: e,
+      );
+    }
+
+    if (onResponse != null) {
+      await onResponse(response);
+    }
+
+    developer.log(
+      'Response ${response.statusCode} for $uri: ${response.body.length > 500 ? response.body.substring(0, 500) : response.body}',
+      name: 'ApiClient',
+    );
 
     final decoded = _handleResponse(
       response,
       successCodes: successCodes,
       defaultErrorMessage: defaultErrorMessage ?? 'Request failed',
+      requiresAuth: requiresAuth,
     );
 
     if (decoded is Map<String, dynamic>) return decoded;
@@ -283,6 +493,8 @@ class ApiClient {
     List<int> successCodes = const [200, 204],
     String? defaultErrorMessage,
     Duration? timeout,
+    FutureOr<void> Function(http.Response response)? onResponse,
+    Map<String, String>? additionalHeaders,
   }) async {
     final uri = _buildUrl(
       endpoint,
@@ -294,22 +506,189 @@ class ApiClient {
     final headers = await _buildHeaders(
       requiresAuth: requiresAuth,
       includeContentType: true,
+      additionalHeaders: additionalHeaders,
     );
 
-    final response = await http
-        .delete(uri, headers: headers)
-        .timeout(
-          timeout ?? Duration(milliseconds: AppConstants.timeoutDuration),
-          onTimeout: () =>
-              throw const ApiException(userMessage: 'Request timed out'),
-        );
+    late final http.Response response;
+    try {
+      response = await http
+          .delete(uri, headers: headers)
+          .timeout(
+            timeout ?? Duration(milliseconds: AppConstants.timeoutDuration),
+            onTimeout: () =>
+                throw const ApiException(userMessage: 'Request timed out'),
+          );
+    } on SocketException catch (e, st) {
+      developer.log(
+        'Network unreachable calling $uri',
+        name: 'ApiClient',
+        error: e,
+        stackTrace: st,
+      );
+      throw ApiException(
+        userMessage:
+            'No internet connection. Please check your network and try again.',
+        cause: e,
+      );
+    } on HandshakeException catch (e, st) {
+      developer.log(
+        'TLS handshake failed calling $uri',
+        name: 'ApiClient',
+        error: e,
+        stackTrace: st,
+      );
+      throw ApiException(
+        userMessage: 'Secure connection failed. Please try again.',
+        cause: e,
+      );
+    }
+
+    if (onResponse != null) {
+      await onResponse(response);
+    }
+
+    developer.log(
+      'Response ${response.statusCode} for $uri: ${response.body.length > 500 ? response.body.substring(0, 500) : response.body}',
+      name: 'ApiClient',
+    );
 
     _handleResponse(
       response,
       successCodes: successCodes,
       defaultErrorMessage: defaultErrorMessage ?? 'Delete request failed',
       allowEmptyBody: true,
+      requiresAuth: requiresAuth,
     );
+  }
+
+  static Future<void> _ensureStoreSession() async {
+    final nonce = await CartSessionService.instance.getNonce();
+    if (nonce != null && nonce.isNotEmpty) return;
+
+    final storeHeaders = await _buildStoreSessionHeaders(includeNonce: false);
+    await get(
+      '/cart',
+      useStoreApi: true,
+      useConsumerAuth: false,
+      additionalHeaders: storeHeaders,
+      onResponse: _captureStoreSessionHeaders,
+      defaultErrorMessage: 'Unable to start cart session',
+    );
+  }
+
+  /// Retries a Store API call once after clearing the persisted cart
+  /// session if the first attempt is rejected with 401/403. A stale or
+  /// invalid Cart-Token/Nonce (left over from an old install, or simply
+  /// past its lifetime) should self-heal into a fresh guest cart session,
+  /// not surface a "please sign in" error for a request that never
+  /// required auth in the first place.
+  static Future<T> _withStoreSessionRetry<T>(
+    Future<T> Function() attempt,
+  ) async {
+    try {
+      return await attempt();
+    } on ApiException catch (e) {
+      if (e.statusCode == 401 || e.statusCode == 403) {
+        await CartSessionService.instance.clear();
+        return attempt();
+      }
+      rethrow;
+    }
+  }
+
+  static Future<Map<String, dynamic>> getStoreApi(
+    String endpoint, {
+    Map<String, dynamic>? queryParams,
+    List<int> successCodes = const [200, 201],
+    String? defaultErrorMessage,
+    Duration? timeout,
+  }) {
+    return _withStoreSessionRetry(() async {
+      final storeHeaders = await _buildStoreSessionHeaders(includeNonce: false);
+      return get(
+        endpoint,
+        useStoreApi: true,
+        useConsumerAuth: false,
+        queryParams: queryParams,
+        successCodes: successCodes,
+        defaultErrorMessage: defaultErrorMessage,
+        timeout: timeout,
+        additionalHeaders: storeHeaders,
+        onResponse: _captureStoreSessionHeaders,
+      );
+    });
+  }
+
+  static Future<Map<String, dynamic>> postStoreApi(
+    String endpoint, {
+    Map<String, dynamic>? body,
+    List<int> successCodes = const [200, 201],
+    String? defaultErrorMessage,
+    Duration? timeout,
+  }) {
+    return _withStoreSessionRetry(() async {
+      await _ensureStoreSession();
+      final storeHeaders = await _buildStoreSessionHeaders(includeNonce: true);
+      return post(
+        endpoint,
+        body: body,
+        useStoreApi: true,
+        useConsumerAuth: false,
+        successCodes: successCodes,
+        defaultErrorMessage: defaultErrorMessage,
+        timeout: timeout,
+        additionalHeaders: storeHeaders,
+        onResponse: _captureStoreSessionHeaders,
+      );
+    });
+  }
+
+  static Future<Map<String, dynamic>> putStoreApi(
+    String endpoint, {
+    Map<String, dynamic>? body,
+    List<int> successCodes = const [200, 201],
+    String? defaultErrorMessage,
+    Duration? timeout,
+  }) {
+    return _withStoreSessionRetry(() async {
+      await _ensureStoreSession();
+      final storeHeaders = await _buildStoreSessionHeaders(includeNonce: true);
+      return put(
+        endpoint,
+        body: body,
+        useStoreApi: true,
+        useConsumerAuth: false,
+        successCodes: successCodes,
+        defaultErrorMessage: defaultErrorMessage,
+        timeout: timeout,
+        additionalHeaders: storeHeaders,
+        onResponse: _captureStoreSessionHeaders,
+      );
+    });
+  }
+
+  static Future<void> deleteStoreApi(
+    String endpoint, {
+    Map<String, dynamic>? queryParams,
+    List<int> successCodes = const [200, 204],
+    String? defaultErrorMessage,
+    Duration? timeout,
+  }) {
+    return _withStoreSessionRetry(() async {
+      await _ensureStoreSession();
+      final storeHeaders = await _buildStoreSessionHeaders(includeNonce: true);
+      await delete(
+        endpoint,
+        useStoreApi: true,
+        useConsumerAuth: false,
+        queryParams: _stringifyQueryParams(queryParams),
+        successCodes: successCodes,
+        defaultErrorMessage: defaultErrorMessage,
+        timeout: timeout,
+        additionalHeaders: storeHeaders,
+        onResponse: _captureStoreSessionHeaders,
+      );
+    });
   }
 
   // Checks status code, decodes JSON, and throws ApiException on failure.
@@ -318,11 +697,20 @@ class ApiClient {
     required List<int> successCodes,
     required String defaultErrorMessage,
     bool allowEmptyBody = false,
+    bool requiresAuth = false,
   }) {
     if (response.statusCode == 401) {
-      throw const ApiException(
+      // Only a request that actually required a signed-in user (Firebase
+      // Bearer token) being rejected means the session expired. A 401 on a
+      // guest/public request (e.g. a Store API cart call with a stale
+      // Cart-Token/Nonce, retried by _withStoreSessionRetry above) is a
+      // different problem and must never tell the user to sign in when
+      // they were never required to in the first place.
+      throw ApiException(
         statusCode: 401,
-        userMessage: 'Your session expired. Please sign in again.',
+        userMessage: requiresAuth
+            ? 'Your session expired. Please sign in again.'
+            : defaultErrorMessage,
       );
     }
 

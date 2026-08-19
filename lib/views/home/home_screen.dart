@@ -6,6 +6,7 @@ import 'package:alnisa_store/blocs/category/category_cubit.dart';
 import 'package:alnisa_store/blocs/category/category_state.dart';
 import 'package:alnisa_store/blocs/main_navigation/main_tab_cubit.dart';
 import 'package:alnisa_store/blocs/product/product_bloc.dart';
+import 'package:alnisa_store/blocs/wishlist/wishlist_cubit.dart';
 import 'package:alnisa_store/constants/app_colors.dart';
 import 'package:alnisa_store/models/product/product_model.dart';
 import 'package:alnisa_store/routes/routes_name.dart';
@@ -324,10 +325,13 @@ class _NewArrivalsSection extends StatelessWidget {
                     return ProductCardWidget(
                       product: product,
                       onTap: () {
-                        // TODO: navigate to product details screen.
+                        Navigator.of(context).pushNamed(
+                          RoutesName.productDetail,
+                          arguments: product.id,
+                        );
                       },
                       onWishlistTap: () {
-                        // TODO: wire up wishlist toggling.
+                        context.read<WishlistCubit>().toggle(product.id);
                       },
                     );
                   },

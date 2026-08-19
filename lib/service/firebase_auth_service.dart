@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:firebase_auth/firebase_auth.dart';
 
 /// Singleton wrapper around [FirebaseAuth] used for login/signup and to
@@ -17,21 +19,57 @@ class FirebaseAuthService {
   Future<UserCredential> signIn({
     required String email,
     required String password,
-  }) {
-    return _firebaseAuth.signInWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
+  }) async {
+    try {
+      return await _firebaseAuth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+    } on FirebaseAuthException catch (e, st) {
+      developer.log(
+        'signIn FirebaseAuthException code=${e.code}, message=${e.message}, details=${e.toString()}',
+        name: 'FirebaseAuthService',
+        error: e,
+        stackTrace: st,
+      );
+      rethrow;
+    } catch (e, st) {
+      developer.log(
+        'signIn failed',
+        name: 'FirebaseAuthService',
+        error: e,
+        stackTrace: st,
+      );
+      rethrow;
+    }
   }
 
   Future<UserCredential> signUp({
     required String email,
     required String password,
-  }) {
-    return _firebaseAuth.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
+  }) async {
+    try {
+      return await _firebaseAuth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+    } on FirebaseAuthException catch (e, st) {
+      developer.log(
+        'signUp FirebaseAuthException code=${e.code}, message=${e.message}, details=${e.toString()}',
+        name: 'FirebaseAuthService',
+        error: e,
+        stackTrace: st,
+      );
+      rethrow;
+    } catch (e, st) {
+      developer.log(
+        'signUp failed',
+        name: 'FirebaseAuthService',
+        error: e,
+        stackTrace: st,
+      );
+      rethrow;
+    }
   }
 
   Future<void> signOut() => _firebaseAuth.signOut();

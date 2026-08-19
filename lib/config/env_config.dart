@@ -15,9 +15,13 @@ class EnvConfig {
   );
 
   /// WooCommerce Store API path segment (session-based cart endpoints).
+  ///
+  /// Note: this WooCommerce install's REST index only registers `wc/store`
+  /// (no `/v1` suffix) — confirmed via https://alnisastore.com/wp-json/.
+  /// Newer WooCommerce versions dropped the version suffix here.
   static const String storeApiVersion = String.fromEnvironment(
     'STORE_API_VERSION',
-    defaultValue: 'wp-json/wc/store/v1',
+    defaultValue: 'wp-json/wc/store',
   );
 
   /// Public core WordPress REST API path segment (custom post types like

@@ -25,6 +25,7 @@ class AppConstants {
   static const String seenOnboardingKey = 'seenOnboarding';
   static const String isDarkThemeKey = 'isDarkTheme';
   static const String localeLanguageCodeKey = 'localeLanguageCode';
+  static const String wishlistProductIdsKey = 'wishlistProductIds';
 
   // flutter_secure_storage keys
   static const String cartTokenKey = 'cartToken';

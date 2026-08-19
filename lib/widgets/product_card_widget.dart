@@ -1,7 +1,10 @@
+import 'package:alnisa_store/blocs/wishlist/wishlist_cubit.dart';
 import 'package:alnisa_store/constants/app_colors.dart';
 import 'package:alnisa_store/models/product/product_model.dart';
+import 'package:alnisa_store/widgets/product_price_widget.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 class ProductCardWidget extends StatelessWidget {
   const ProductCardWidget({
@@ -20,6 +23,8 @@ class ProductCardWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final imageUrl = product.images.isNotEmpty ? product.images.first.src : '';
+    final isWishlisted = context.watch<WishlistCubit>().state.wishlistedIds
+        .contains(product.id);
 
     return InkWell(
       onTap: onTap,
@@ -62,8 +67,13 @@ class ProductCardWidget extends StatelessWidget {
                     top: 4,
                     right: 4,
                     child: IconButton(
-                      onPressed: onWishlistTap,
-                      icon: const Icon(Icons.favorite_border),
+                      onPressed: onWishlistTap ??
+                          () {
+                            context.read<WishlistCubit>().toggle(product.id);
+                          },
+                      icon: Icon(
+                        isWishlisted ? Icons.favorite : Icons.favorite_border,
+                      ),
                       color: AppColors.primary,
                       iconSize: 20,
                       constraints: const BoxConstraints(),
@@ -91,7 +101,12 @@ class ProductCardWidget extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  _buildPriceRow(),
+                  ProductPriceWidget(
+                    price: product.price,
+                    regularPrice: product.regularPrice,
+                    salePrice: product.salePrice,
+                    onSale: product.onSale,
+                  ),
                 ],
               ),
             ),
@@ -120,34 +135,4 @@ class ProductCardWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildPriceRow() {
-    if (!product.onSale || product.salePrice.isEmpty) {
-      return Text(
-        'AED ${product.price}',
-        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-      );
-    }
-
-    return Row(
-      children: [
-        Text(
-          'AED ${product.regularPrice}',
-          style: const TextStyle(
-            fontSize: 12,
-            color: AppColors.textSecondary,
-            decoration: TextDecoration.lineThrough,
-          ),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          'AED ${product.salePrice}',
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
-            color: AppColors.primary,
-          ),
-        ),
-      ],
-    );
-  }
 }

@@ -1,4 +1,8 @@
+import 'package:alnisa_store/blocs/auth/auth_cubit.dart';
+import 'package:alnisa_store/blocs/cart/cart_bloc.dart';
 import 'package:alnisa_store/blocs/main_navigation/main_tab_cubit.dart';
+import 'package:alnisa_store/blocs/wishlist/wishlist_cubit.dart';
+import 'package:alnisa_store/service/get_it.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -16,9 +20,16 @@ class AppProviders extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider<MainTabCubit>(create: (_) => MainTabCubit()),
-        // TODO: add AuthBloc/AuthCubit provider here.
+        BlocProvider<AuthCubit>(lazy: false, create: (_) => getIt<AuthCubit>()),
         // TODO: add ProductBloc/ProductCubit provider here.
-        // TODO: add CartBloc/CartCubit provider here.
+        BlocProvider<CartBloc>(
+          lazy: false,
+          create: (_) => getIt<CartBloc>()..add(const FetchCartEvent()),
+        ),
+        BlocProvider<WishlistCubit>(
+          lazy: false,
+          create: (_) => getIt<WishlistCubit>()..loadIds(),
+        ),
       ],
       child: child,
     );
